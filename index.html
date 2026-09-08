@@ -9,14 +9,12 @@
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png"/>
 <link rel="manifest" href="manifest.json"/>
 <meta name="theme-color" content="#1677e8"/>
-<link href="styles.css?v=21" rel="stylesheet"/>
+<link href="styles.css?v=22" rel="stylesheet"/>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
-<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 <script defer="" src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script defer="" src="app.js?v=21"></script>
+<script defer="" src="app.js?v=22"></script>
 </head>
 <body>
 <header class="topbar">
@@ -66,7 +64,10 @@
 <label>Tên vị trí thẩm định
           <input id="placeName" maxlength="90" placeholder="Ví dụ: NHÀ THUỐC ABC" type="text"/>
 </label>
-<input id="address" type="hidden" value=""/>
+<label>Địa chỉ theo hồ sơ
+          <input id="address" type="text" placeholder="Nhập địa chỉ theo hồ sơ" autocomplete="street-address"/>
+          <span class="field-help">Địa chỉ do bạn nhập sẽ hiển thị trên biểu mẫu. Nếu chưa có tọa độ hoặc link Google Maps, địa chỉ này cũng được dùng để mở bản đồ.</span>
+</label>
 <label>Link Google Maps
           <div class="inline-row">
 <input id="mapsUrl" placeholder="Dán link Google Maps đầy đủ" type="url"/>
@@ -153,9 +154,9 @@
 
 <label>Tên đường / mốc cần làm rõ
           <textarea id="roadNames" maxlength="260" placeholder="Mỗi dòng một tên, ví dụ:
-Đường Nguyễn Văn A
-Đường Trần Hưng Đạo
-Ngã tư Trung Lương" rows="4"></textarea>
+Đường A
+Đường B
+Ngã tư gần cơ sở" rows="4"></textarea>
 </label>
 <div class="button-row wrap">
 <button class="btn" id="btnApplyRoadLabels" type="button">Cập nhật nhãn trên bản đồ</button>
@@ -200,7 +201,7 @@ Ngã tư Trung Lương" rows="4"></textarea>
   <button class="btn" id="btnCopyLink" type="button">Sao chép link</button>
 </div>
 <div class="direct-export-note">
-  <strong>Export PDF tự động:</strong> chạy ngầm, không mở hộp thoại In và không hỏi quyền chụp màn hình. QR vẫn mở Google Maps; bản PDF dùng nền bản đồ hồ sơ ở đúng tọa độ để xuất ổn định.
+  <strong>Export PDF tự động:</strong> chạy ngầm, không mở hộp thoại In và không hỏi quyền. Bản đồ PDF được dựng độ phân giải cao tại đúng vị trí; QR vẫn mở Google Maps.
 </div>
 <input id="googleApiKey" type="hidden" value=""/>
 </div></details></section>
@@ -221,7 +222,7 @@ Ngã tư Trung Lương" rows="4"></textarea>
       <button type="button" class="paper-quick-btn" id="btnPaperA4" data-paper="a4">A4</button>
     </div>
     <span class="preview-meta" id="previewMeta">Biểu mẫu gốc • Letter 8.5 × 11 inch</span>
-    <span class="preview-sync-status warning" id="previewSyncStatus" title="In dùng trực tiếp trang hiện tại; PDF chạy ngầm và tự tải file.">Sẵn sàng</span>
+    <span class="preview-sync-status warning" id="previewSyncStatus" title="In mở hộp thoại in trực tiếp; PDF chạy ngầm và tự tải file.">Sẵn sàng</span>
     <div id="exportProgress" class="export-progress hidden" aria-live="polite">
       <div class="export-progress-head"><span id="exportProgressText">Đang xử lý…</span><strong id="exportProgressPct">0%</strong></div>
       <div class="export-progress-track"><i id="exportProgressBar"></i></div>
@@ -233,7 +234,7 @@ Ngã tư Trung Lương" rows="4"></textarea>
 <img alt="Biểu mẫu sơ đồ địa điểm kinh doanh" class="template" src="assets/so-do-dia-diem-template.png">
 <div class="map-frame" id="mapFrame">
 <iframe id="mapIframe" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Google Maps"></iframe>
-<div id="exportMapSurface" class="export-map-surface" aria-hidden="true"></div>
+<img id="exportMapSurface" class="export-map-surface" alt="Bản đồ nền dùng khi xuất PDF" aria-hidden="true"/>
 <img alt="Google Maps tĩnh" class="static-map hidden" crossorigin="anonymous" id="staticMapImage">
 <div class="map-empty" id="mapEmpty">Nhập địa chỉ hoặc tọa độ để hiển thị bản đồ.</div>
 <div aria-label="Nhãn tên đường thủ công" class="road-labels-layer" id="roadLabelsLayer"></div>

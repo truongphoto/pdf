@@ -25,8 +25,6 @@
   let customQrLogoData = '';
   let qrObject = null;
   let updateTimer = null;
-  let exportLeafletMap = null;
-  let exportLeafletTiles = null;
   let exportBusy = false;
   let markerPos = {x:50, y:50};
   let roadLabels = [];
@@ -342,14 +340,41 @@
   function destinationText(){
     const c = validCoords() || parseGoogleMapsUrl(els.mapsUrl.value);
     if(c) return `${c.lat},${c.lng}`;
-    return '';
+    const a = els.address.value.trim();
+    return a || '';
   }
 
   function exportCoords(){
     return validCoords() || parseGoogleMapsUrl(els.mapsUrl.value);
   }
 
-  function updateAddressOutput(){ if(els.addressOutput) els.addressOutput.classList.add('hidden'); }
+  async function geocodeAddressForExport(address){
+    const q = String(address || '').trim();
+    if(!q) return null;
+    try{
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=vi&q=${encodeURIComponent(q)}`;
+      const res = await fetch(url, {headers:{'Accept':'application/json'}});
+      if(!res.ok) return null;
+      const data = await res.json();
+      const item = Array.isArray(data) && data[0];
+      if(!item) return null;
+      const lat = Number(item.lat), lng = Number(item.lon);
+      if(!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return {lat,lng};
+    }catch(_){ return null; }
+  }
+
+  async function resolveExportCoords(){
+    return exportCoords() || await geocodeAddressForExport(els.address.value);
+  }
+
+  function updateAddressOutput(){
+    if(!els.addressOutput) return;
+    const value = els.address.value.trim();
+    const span = els.addressOutput.querySelector('span');
+    if(span) span.textContent = value;
+    els.addressOutput.classList.toggle('hidden', !value);
+  }
 
   function directionsUrl(){
     const d = destinationText();
@@ -707,35 +732,93 @@
     }
   }
 
-  async function prepareSilentExportMap(){
-    const c = exportCoords();
-    if(!c) throw new Error('missing-coordinates');
-    if(!els.exportMapSurface || !window.L) throw new Error('leaflet-unavailable');
+  function mercatorWorldPx(lat, lng, zoom){
+    const n = Math.pow(2, zoom) * 256;
+    const x = (lng + 180) / 360 * n;
+    const sinLat = Math.sin(lat * Math.PI / 180);
+    const y = (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * n;
+    return {x,y};
+  }
+
+  async function loadTileBitmap(url){
+    const res = await fetch(url, {mode:'cors', cache:'force-cache'});
+    if(!res.ok) throw new Error(`tile-${res.status}`);
+    const blob = await res.blob();
+    if('createImageBitmap' in window) return await createImageBitmap(blob);
+    return await new Promise((resolve,reject)=>{
+      const img = new Image();
+      img.onload=()=>resolve(img); img.onerror=()=>reject(new Error('tile-image-error'));
+      img.src=URL.createObjectURL(blob);
+    });
+  }
+
+  async function buildHighResExportMap(coords){
     document.body.classList.add('pdf-exporting');
     setCanonicalSheetMode(true);
     await nextPaint();
-    const zoom = Math.max(13, Math.min(20, Number(els.zoom.value) || 18));
-    if(!exportLeafletMap){
-      exportLeafletMap = L.map(els.exportMapSurface, {zoomControl:false, attributionControl:true, preferCanvas:true, fadeAnimation:false, zoomAnimation:false, markerZoomAnimation:false});
-      exportLeafletTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom:20,
-        crossOrigin:true,
-        updateWhenIdle:false,
-        keepBuffer:4,
-        attribution:'© OpenStreetMap'
-      }).addTo(exportLeafletMap);
-    }
-    exportLeafletMap.setView([c.lat,c.lng], zoom, {animate:false});
-    exportLeafletMap.invalidateSize(true);
-    await new Promise((resolve)=>{
-      let finished=false;
-      const done=()=>{if(finished)return;finished=true;resolve();};
-      const timer=setTimeout(done,3500);
-      if(exportLeafletTiles){
-        const onLoad=()=>{clearTimeout(timer); exportLeafletTiles.off('load',onLoad); done();};
-        exportLeafletTiles.on('load',onLoad);
+    const frameRect = els.mapFrame.getBoundingClientRect();
+    const logicalW = Math.max(320, Math.round(frameRect.width));
+    const logicalH = Math.max(420, Math.round(frameRect.height));
+    const scale = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = logicalW * scale;
+    canvas.height = logicalH * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle='#f2f5f6'; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    const baseZoom = Math.max(13, Math.min(19, Number(els.zoom.value) || 18));
+    const tileZoom = Math.min(20, baseZoom);
+    const world = mercatorWorldPx(coords.lat, coords.lng, tileZoom);
+    const viewW = logicalW;
+    const viewH = logicalH;
+    const left = world.x - viewW/2;
+    const top = world.y - viewH/2;
+    const minTX = Math.floor(left/256)-1, maxTX=Math.floor((left+viewW)/256)+1;
+    const minTY = Math.floor(top/256)-1, maxTY=Math.floor((top+viewH)/256)+1;
+    const maxTile = Math.pow(2,tileZoom);
+    const jobs=[];
+    for(let ty=minTY; ty<=maxTY; ty++){
+      if(ty<0 || ty>=maxTile) continue;
+      for(let tx=minTX; tx<=maxTX; tx++){
+        const wrappedX=((tx%maxTile)+maxTile)%maxTile;
+        const sub=['a','b','c','d'][(Math.abs(tx+ty))%4];
+        const url=`https://${sub}.basemaps.cartocdn.com/light_all/${tileZoom}/${wrappedX}/${ty}@2x.png`;
+        const dx=(tx*256-left)*scale, dy=(ty*256-top)*scale;
+        jobs.push({url,dx,dy});
       }
-      setTimeout(()=>{ try{exportLeafletMap.invalidateSize(true);}catch(_){} },60);
+    }
+
+    let loaded=0, failed=0;
+    const total=Math.max(1,jobs.length);
+    await Promise.all(jobs.map(async job=>{
+      try{
+        const img=await loadTileBitmap(job.url);
+        ctx.drawImage(img,job.dx,job.dy,256*scale,256*scale);
+        if(img && typeof img.close==='function') try{img.close();}catch(_){}
+        loaded++;
+      }catch(_){ failed++; }
+      const pct=18 + Math.round(((loaded+failed)/total)*34);
+      setExportProgress(pct,'Đang dựng bản đồ chất lượng cao…');
+    }));
+    if(!loaded) throw new Error('map-tiles-failed');
+
+    // Attribution bắt buộc cho nền bản đồ OSM/CARTO.
+    const credit='© OpenStreetMap contributors • © CARTO';
+    ctx.save();
+    ctx.font=`${11*scale}px Arial`;
+    const pad=4*scale, tw=ctx.measureText(credit).width;
+    const x=canvas.width-tw-pad*2, y=canvas.height-(18*scale);
+    ctx.fillStyle='rgba(255,255,255,.86)'; ctx.fillRect(x,y,tw+pad*2,16*scale);
+    ctx.fillStyle='#4b5961'; ctx.fillText(credit,x+pad,y+11*scale);
+    ctx.restore();
+
+    const dataUrl=canvas.toDataURL('image/png');
+    els.exportMapSurface.src=dataUrl;
+    await new Promise((resolve,reject)=>{
+      if(els.exportMapSurface.complete && els.exportMapSurface.naturalWidth>0){resolve();return;}
+      const t=setTimeout(()=>reject(new Error('export-map-image-timeout')),5000);
+      els.exportMapSurface.onload=()=>{clearTimeout(t);resolve();};
+      els.exportMapSurface.onerror=()=>{clearTimeout(t);reject(new Error('export-map-image-error'));};
     });
     await nextPaint();
   }
@@ -743,18 +826,21 @@
   function finishSilentExportMap(){
     document.body.classList.remove('pdf-exporting');
     setCanonicalSheetMode(false);
+    if(els.exportMapSurface) els.exportMapSurface.removeAttribute('src');
     requestAnimationFrame(fitPreviewSheet);
   }
 
   async function silentSheetCanvas(){
     const html2canvasFn = window.html2canvas;
     if(typeof html2canvasFn !== 'function') throw new Error('missing-html2canvas');
-    await prepareSilentExportMap();
+    const coords=await resolveExportCoords();
+    if(!coords) throw new Error('missing-coordinates');
+    await buildHighResExportMap(coords);
     try{
       if(document.fonts && document.fonts.ready) await document.fonts.ready;
       await nextPaint();
       return await html2canvasFn(els.sheet, {
-        scale:3.2,
+        scale:2.7,
         useCORS:true,
         allowTaint:false,
         backgroundColor:'#ffffff',
@@ -767,6 +853,8 @@
           const s=doc.getElementById('sheet'); if(s){s.style.transform='none';s.style.boxShadow='none';s.style.outline='0';}
           const iframe=doc.getElementById('mapIframe'); if(iframe) iframe.style.display='none';
           const staticImg=doc.getElementById('staticMapImage'); if(staticImg) staticImg.style.display='none';
+          const exportImg=doc.getElementById('exportMapSurface');
+          if(exportImg){exportImg.style.display='block';exportImg.style.width='100%';exportImg.style.height='100%';exportImg.style.objectFit='fill';}
           const controls=doc.querySelectorAll('.road-rotate'); controls.forEach(el=>el.style.display='none');
         }
       });
@@ -777,8 +865,7 @@
 
   async function exportPdfSilent(){
     if(exportBusy) return;
-    const c=exportCoords();
-    if(!c){ toast('Hãy nhập tọa độ hoặc dán link Google Maps có tọa độ trước khi Export PDF.'); return; }
+    if(!destinationText()){ toast('Hãy nhập tọa độ, link Google Maps hoặc địa chỉ trước khi Export PDF.'); return; }
     exportBusy=true;
     try{
       setExportProgress(8,'Chuẩn bị bản đồ…');
@@ -803,8 +890,8 @@
       finishSilentExportMap();
       setExportProgress(0,'Có lỗi khi xuất',false);
       setTimeout(()=>setExportProgress(0,'Sẵn sàng',true),1800);
-      if(err&&err.message==='missing-coordinates') toast('Cần tọa độ chính xác để xuất PDF tự động.');
-      else if(err&&err.message==='leaflet-unavailable') toast('Không tải được bản đồ xuất. Kiểm tra kết nối Internet rồi thử lại.');
+      if(err&&err.message==='missing-coordinates') toast('Không xác định được vị trí. Hãy nhập tọa độ, link Google Maps hoặc kiểm tra lại địa chỉ.');
+      else if(err&&err.message==='map-tiles-failed') toast('Không tải được nền bản đồ. Kiểm tra Internet rồi thử lại.');
       else toast('Chưa tạo được PDF. Vui lòng thử lại.');
     }finally{ exportBusy=false; }
   }
@@ -1031,7 +1118,7 @@
     els.btnTestQr.addEventListener('click', () => openUrl(directionsUrl()));
 
     const doPrint = () => {
-      if(!destinationText()) { toast('Hãy nhập tọa độ hoặc link Google Maps trước khi in.'); return; }
+      if(!destinationText()) { toast('Hãy nhập tọa độ, link Google Maps hoặc địa chỉ trước khi in.'); return; }
       updatePaperUi();
       applyPrintPageStyle();
       updateMap();

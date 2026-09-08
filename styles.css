@@ -599,8 +599,27 @@ body.screen-export-mode .marker-wrap,body.screen-export-mode .road-label{cursor:
 .export-map-surface{position:absolute;inset:0;z-index:3;display:none;background:#eef2f3}
 body.pdf-exporting .export-map-surface{display:block!important}
 body.pdf-exporting #mapIframe,body.pdf-exporting #staticMapImage{display:none!important}
-body.pdf-exporting .leaflet-control-zoom{display:none!important}
-body.pdf-exporting .leaflet-control-attribution{font-size:7px!important;background:rgba(255,255,255,.82)!important;padding:1px 3px!important}
-.address-output{display:none!important}
 @media(max-width:900px){.export-progress{width:160px}.export-progress-head{font-size:.61rem}}
 @media print{.export-progress{display:none!important}.preview-sync-status{display:none!important}}
+
+
+/* ===== v22: khôi phục địa chỉ + nền bản đồ PDF ảnh tĩnh độ phân giải cao ===== */
+.export-map-surface{
+  position:absolute!important;inset:0!important;z-index:3!important;display:none!important;
+  width:100%!important;height:100%!important;object-fit:fill!important;background:#eef2f3!important;
+}
+body.pdf-exporting .export-map-surface{display:block!important}
+body.pdf-exporting #mapIframe,body.pdf-exporting #staticMapImage{display:none!important}
+.address-output{
+  position:absolute!important;left:1.6%!important;bottom:1.45%!important;z-index:8!important;
+  max-width:72%!important;padding:4px 7px!important;border:1px solid rgba(24,51,68,.38)!important;
+  border-radius:4px!important;background:rgba(255,255,255,.94)!important;color:#111!important;
+  font-family:"Times New Roman",serif!important;font-size:10px!important;line-height:1.22!important;
+  box-shadow:0 1px 2px rgba(0,0,0,.08)!important;
+}
+.address-output.hidden{display:none!important}
+.address-output strong{font-weight:700!important}.address-output span{font-weight:400!important}
+body.pdf-exporting .address-output{font-size:10px!important;background:#fff!important;box-shadow:none!important}
+@media print{
+  .address-output{font-size:7.5pt!important;padding:3pt 5pt!important;background:#fff!important;box-shadow:none!important}
+}
