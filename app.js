@@ -288,9 +288,9 @@
       toast('Đã xuất PDF đúng bản xem trước, không cần API.');
     }catch(err){
       console.error(err);
-      if(err && err.name === 'NotAllowedError') toast('Bạn đã hủy quyền chụp. Hãy thử lại và chọn tab hiện tại.');
+      if(err && err.name === 'NotAllowedError') toast('Trình duyệt chưa cho phép chụp tab hoặc thao tác đã mất quyền người dùng. Hãy bấm Export PDF lại và chọn “Tab này / This Tab”.');
       else if(err && err.message === 'choose-current-tab') toast('Hãy chọn TAB HIỆN TẠI, không chọn toàn màn hình/cửa sổ khác.');
-      else if(err && err.message === 'screen-capture-unsupported'){
+      else if(err && (err.message === 'screen-capture-unsupported' || err.message === 'capture-no-video-track')){
         toast('Trình duyệt này chưa hỗ trợ chụp tab. Đang mở In để bạn chọn “Lưu dưới dạng PDF”.');
         await doKeylessBrowserPrint(true);
       }else toast('Không chụp được bản xem trước. Có thể dùng In → Lưu dưới dạng PDF.');
@@ -732,18 +732,26 @@
     let stream = null;
     let captureMode = false;
     try{
-      // Hiển thị hướng dẫn trước khi chuyển sang chế độ chụp để người dùng thấy rõ.
-      toast('Khi trình duyệt hỏi, hãy chọn TAB HIỆN TẠI.');
-      await new Promise(resolve=>setTimeout(resolve,180));
-      stream = await navigator.mediaDevices.getDisplayMedia({video:true,audio:false});
+      // QUAN TRỌNG: getDisplayMedia phải được gọi NGAY trong thao tác click của người dùng.
+      // Không được await/setTimeout trước lệnh này, nếu không Chrome/Edge có thể mất
+      // "transient user activation" và từ chối chụp dù trang đang chạy HTTPS/GitHub Pages.
+      toast('Chọn “Tab này / This Tab” rồi bấm Chia sẻ.');
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video:true,
+        audio:false,
+        preferCurrentTab:true,
+        selfBrowserSurface:'include'
+      });
       const track = stream.getVideoTracks()[0];
-      const settings = track && track.getSettings ? track.getSettings() : {};
+      if(!track) throw new Error('capture-no-video-track');
+      const settings = track.getSettings ? track.getSettings() : {};
       if(settings.displaySurface && settings.displaySurface !== 'browser'){
         throw new Error('choose-current-tab');
       }
 
       enterScreenExportMode();
       captureMode = true;
+      await nextPaint();
       await nextPaint();
 
       const video = document.createElement('video');
@@ -938,9 +946,9 @@
         toast('Bản In lấy trực tiếp từ bản xem trước.');
       }catch(err){
         console.error(err);
-        if(err && err.name === 'NotAllowedError') toast('Bạn đã hủy quyền chụp. Hãy thử lại và chọn tab hiện tại.');
+        if(err && err.name === 'NotAllowedError') toast('Trình duyệt chưa cho phép chụp tab hoặc thao tác đã mất quyền người dùng. Hãy bấm Export PDF lại và chọn “Tab này / This Tab”.');
         else if(err && err.message === 'choose-current-tab') toast('Hãy chọn TAB HIỆN TẠI để In đúng Google Maps đang xem.');
-        else if(err && err.message === 'screen-capture-unsupported'){
+        else if(err && (err.message === 'screen-capture-unsupported' || err.message === 'capture-no-video-track')){
           toast('Trình duyệt chưa hỗ trợ chụp tab. Đang dùng chế độ In trực tiếp.');
           await doKeylessBrowserPrint(false);
         }else{

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'qr-tham-dinh-v19-direct-capture';
+const CACHE_VERSION = 'qr-tham-dinh-v20-capture-user-gesture-fix';
 const APP_SHELL = [
   './', './index.html', './styles.css?v=19', './app.js?v=19', './manifest.json',
   './assets/brand-truong-gpp.png', './assets/favicon-y-te-32.png',
