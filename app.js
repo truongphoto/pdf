@@ -14,7 +14,7 @@
     btnPrint:$('btnPrint'), btnPrint2:$('btnPrint2'), btnExportPdf:$('btnExportPdf'), btnExportPdf2:$('btnExportPdf2'), btnDownloadQr:$('btnDownloadQr'), btnCopyLink:$('btnCopyLink'), qrCard:$('qrCard'), toast:$('toast'),
     paperSize:$('paperSize'), paperSizeHint:$('paperSizeHint'), previewMeta:$('previewMeta'),
     btnPaperLetter:$('btnPaperLetter'), btnPaperA4:$('btnPaperA4'),
-    btnRefreshAll:$('btnRefreshAll'), btnQuickTestQr:$('btnQuickTestQr'), btnQuickPrint:$('btnQuickPrint'), btnQuickExportPdf:$('btnQuickExportPdf'),
+    btnRefreshAll:$('btnRefreshAll'), btnQuickTestQr:$('btnQuickTestQr'), btnQuickPrint:$('btnQuickPrint'), btnQuickExportPdf:$('btnQuickExportPdf'), exportProgress:$('exportProgress'), exportProgressText:$('exportProgressText'), exportProgressPct:$('exportProgressPct'), exportProgressBar:$('exportProgressBar'), exportMapSurface:$('exportMapSurface'),
     mapsApiBox:$('mapsApiBox'), apiKeyStatus:$('apiKeyStatus'), btnToggleApiKey:$('btnToggleApiKey'), btnTestApiKey:$('btnTestApiKey'),
     sheet:$('sheet'), sheetViewport:$('sheetViewport'), previewArea:document.querySelector('.preview-area'), previewToolbar:document.querySelector('.preview-toolbar'), previewSyncStatus:$('previewSyncStatus')
   };
@@ -25,6 +25,9 @@
   let customQrLogoData = '';
   let qrObject = null;
   let updateTimer = null;
+  let exportLeafletMap = null;
+  let exportLeafletTiles = null;
+  let exportBusy = false;
   let markerPos = {x:50, y:50};
   let roadLabels = [];
   const QR_DEFAULT_SIZE = 15.4;
@@ -280,22 +283,7 @@
     setTimeout(() => window.print(), 80);
   }
 
-  async function doExportPdf(){
-    if(!destinationText()) { toast('Hãy nhập địa chỉ hoặc tọa độ trước khi xuất PDF.'); return; }
-    try{
-      toast('Đang chuẩn bị chụp bản xem trước...');
-      await exportPdfFromVisiblePreview();
-      toast('Đã xuất PDF đúng bản xem trước, không cần API.');
-    }catch(err){
-      console.error(err);
-      if(err && err.name === 'NotAllowedError') toast('Trình duyệt chưa cho phép chụp tab hoặc thao tác đã mất quyền người dùng. Hãy bấm Export PDF lại và chọn “Tab này / This Tab”.');
-      else if(err && err.message === 'choose-current-tab') toast('Hãy chọn TAB HIỆN TẠI, không chọn toàn màn hình/cửa sổ khác.');
-      else if(err && (err.message === 'screen-capture-unsupported' || err.message === 'capture-no-video-track')){
-        toast('Trình duyệt này chưa hỗ trợ chụp tab. Đang mở In để bạn chọn “Lưu dưới dạng PDF”.');
-        await doKeylessBrowserPrint(true);
-      }else toast('Không chụp được bản xem trước. Có thể dùng In → Lưu dưới dạng PDF.');
-    }
-  }
+  async function doExportPdf(){ return exportPdfSilent(); }
 
   function roadLabelDefaults(index){
     const positions = [
@@ -352,21 +340,16 @@
   }
 
   function destinationText(){
-    const c = validCoords();
+    const c = validCoords() || parseGoogleMapsUrl(els.mapsUrl.value);
     if(c) return `${c.lat},${c.lng}`;
-    const fromLink = parseGoogleMapsUrl(els.mapsUrl && els.mapsUrl.value);
-    if(fromLink) return `${fromLink.lat},${fromLink.lng}`;
-    const a = els.address.value.trim();
-    return a || '';
+    return '';
   }
 
-  function updateAddressOutput(){
-    if(!els.addressOutput) return;
-    const value = els.address.value.trim();
-    const span = els.addressOutput.querySelector('span');
-    if(span) span.textContent = value;
-    els.addressOutput.classList.toggle('hidden', !value);
+  function exportCoords(){
+    return validCoords() || parseGoogleMapsUrl(els.mapsUrl.value);
   }
+
+  function updateAddressOutput(){ if(els.addressOutput) els.addressOutput.classList.add('hidden'); }
 
   function directionsUrl(){
     const d = destinationText();
@@ -708,6 +691,124 @@
     window.addEventListener('pointercancel', stopDragging);
   }
 
+  function setExportProgress(percent, text, done=false){
+    const p = Math.max(0, Math.min(100, Math.round(percent || 0)));
+    if(els.exportProgress){
+      els.exportProgress.classList.toggle('hidden', done);
+      if(els.exportProgressPct) els.exportProgressPct.textContent = `${p}%`;
+      if(els.exportProgressText) els.exportProgressText.textContent = text || 'Đang xử lý…';
+      if(els.exportProgressBar) els.exportProgressBar.style.width = `${p}%`;
+    }
+    const toolbar = document.querySelector('.preview-toolbar');
+    if(toolbar) toolbar.classList.toggle('export-busy', !done && p < 100);
+    if(els.previewSyncStatus){
+      els.previewSyncStatus.textContent = done ? 'Sẵn sàng' : (text || 'Đang xử lý…');
+      els.previewSyncStatus.classList.toggle('warning', !done);
+    }
+  }
+
+  async function prepareSilentExportMap(){
+    const c = exportCoords();
+    if(!c) throw new Error('missing-coordinates');
+    if(!els.exportMapSurface || !window.L) throw new Error('leaflet-unavailable');
+    document.body.classList.add('pdf-exporting');
+    setCanonicalSheetMode(true);
+    await nextPaint();
+    const zoom = Math.max(13, Math.min(20, Number(els.zoom.value) || 18));
+    if(!exportLeafletMap){
+      exportLeafletMap = L.map(els.exportMapSurface, {zoomControl:false, attributionControl:true, preferCanvas:true, fadeAnimation:false, zoomAnimation:false, markerZoomAnimation:false});
+      exportLeafletTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom:20,
+        crossOrigin:true,
+        updateWhenIdle:false,
+        keepBuffer:4,
+        attribution:'© OpenStreetMap'
+      }).addTo(exportLeafletMap);
+    }
+    exportLeafletMap.setView([c.lat,c.lng], zoom, {animate:false});
+    exportLeafletMap.invalidateSize(true);
+    await new Promise((resolve)=>{
+      let finished=false;
+      const done=()=>{if(finished)return;finished=true;resolve();};
+      const timer=setTimeout(done,3500);
+      if(exportLeafletTiles){
+        const onLoad=()=>{clearTimeout(timer); exportLeafletTiles.off('load',onLoad); done();};
+        exportLeafletTiles.on('load',onLoad);
+      }
+      setTimeout(()=>{ try{exportLeafletMap.invalidateSize(true);}catch(_){} },60);
+    });
+    await nextPaint();
+  }
+
+  function finishSilentExportMap(){
+    document.body.classList.remove('pdf-exporting');
+    setCanonicalSheetMode(false);
+    requestAnimationFrame(fitPreviewSheet);
+  }
+
+  async function silentSheetCanvas(){
+    const html2canvasFn = window.html2canvas;
+    if(typeof html2canvasFn !== 'function') throw new Error('missing-html2canvas');
+    await prepareSilentExportMap();
+    try{
+      if(document.fonts && document.fonts.ready) await document.fonts.ready;
+      await nextPaint();
+      return await html2canvasFn(els.sheet, {
+        scale:3.2,
+        useCORS:true,
+        allowTaint:false,
+        backgroundColor:'#ffffff',
+        logging:false,
+        imageTimeout:12000,
+        scrollX:0,
+        scrollY:0,
+        onclone:(doc)=>{
+          doc.body.classList.add('pdf-exporting');
+          const s=doc.getElementById('sheet'); if(s){s.style.transform='none';s.style.boxShadow='none';s.style.outline='0';}
+          const iframe=doc.getElementById('mapIframe'); if(iframe) iframe.style.display='none';
+          const staticImg=doc.getElementById('staticMapImage'); if(staticImg) staticImg.style.display='none';
+          const controls=doc.querySelectorAll('.road-rotate'); controls.forEach(el=>el.style.display='none');
+        }
+      });
+    }finally{
+      finishSilentExportMap();
+    }
+  }
+
+  async function exportPdfSilent(){
+    if(exportBusy) return;
+    const c=exportCoords();
+    if(!c){ toast('Hãy nhập tọa độ hoặc dán link Google Maps có tọa độ trước khi Export PDF.'); return; }
+    exportBusy=true;
+    try{
+      setExportProgress(8,'Chuẩn bị bản đồ…');
+      await nextPaint();
+      setExportProgress(28,'Đang tải nền bản đồ…');
+      const canvas = await silentSheetCanvas();
+      setExportProgress(76,'Đang tạo PDF chất lượng cao…');
+      const JsPdfCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+      if(typeof JsPdfCtor!=='function') throw new Error('missing-jspdf');
+      const isA4=paperMode()==='a4';
+      const pageWidth=isA4?210:215.9, pageHeight=isA4?297:279.4;
+      const pdf=new JsPdfCtor({unit:'mm',format:isA4?'a4':'letter',orientation:'portrait',compress:true});
+      const png=canvas.toDataURL('image/png');
+      pdf.addImage(png,'PNG',0,0,pageWidth,pageHeight,undefined,'FAST');
+      setExportProgress(94,'Đang lưu file…');
+      pdf.save(`${safeBaseName()}-${paperMode().toUpperCase()}.pdf`);
+      setExportProgress(100,'Hoàn tất');
+      setTimeout(()=>setExportProgress(100,'Sẵn sàng',true),900);
+      toast('Đã xuất PDF chất lượng cao.');
+    }catch(err){
+      console.error(err);
+      finishSilentExportMap();
+      setExportProgress(0,'Có lỗi khi xuất',false);
+      setTimeout(()=>setExportProgress(0,'Sẵn sàng',true),1800);
+      if(err&&err.message==='missing-coordinates') toast('Cần tọa độ chính xác để xuất PDF tự động.');
+      else if(err&&err.message==='leaflet-unavailable') toast('Không tải được bản đồ xuất. Kiểm tra kết nối Internet rồi thử lại.');
+      else toast('Chưa tạo được PDF. Vui lòng thử lại.');
+    }finally{ exportBusy=false; }
+  }
+
   function screenCaptureSupported(){
     return !!(navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === 'function');
   }
@@ -860,15 +961,6 @@
       selectIconButton(btn);
       selectedMarker = btn.dataset.icon || 'none';
 
-      const defaultLabel = (btn.dataset.defaultLabel || '').trim();
-      const currentName = els.placeName.value.trim();
-      if(defaultLabel && (!currentName || currentName === lastAutoPlaceName)){
-        els.placeName.value = defaultLabel;
-        lastAutoPlaceName = defaultLabel;
-      }else if(!defaultLabel && currentName === lastAutoPlaceName){
-        els.placeName.value = '';
-        lastAutoPlaceName = '';
-      }
       scheduleUpdate();
     });
 
@@ -938,24 +1030,12 @@
     els.btnOpenMap.addEventListener('click', () => openUrl(placeMapUrl()));
     els.btnTestQr.addEventListener('click', () => openUrl(directionsUrl()));
 
-    const doPrint = async () => {
-      if(!destinationText()) { toast('Hãy nhập tọa độ, link Google Maps hoặc địa chỉ trước khi in.'); return; }
-      try{
-        toast('Đang chuẩn bị bản In đúng bản xem trước...');
-        await printFromVisiblePreview();
-        toast('Bản In lấy trực tiếp từ bản xem trước.');
-      }catch(err){
-        console.error(err);
-        if(err && err.name === 'NotAllowedError') toast('Trình duyệt chưa cho phép chụp tab hoặc thao tác đã mất quyền người dùng. Hãy bấm Export PDF lại và chọn “Tab này / This Tab”.');
-        else if(err && err.message === 'choose-current-tab') toast('Hãy chọn TAB HIỆN TẠI để In đúng Google Maps đang xem.');
-        else if(err && (err.message === 'screen-capture-unsupported' || err.message === 'capture-no-video-track')){
-          toast('Trình duyệt chưa hỗ trợ chụp tab. Đang dùng chế độ In trực tiếp.');
-          await doKeylessBrowserPrint(false);
-        }else{
-          toast('Không chụp được tab. Đang dùng chế độ In trực tiếp.');
-          await doKeylessBrowserPrint(false);
-        }
-      }
+    const doPrint = () => {
+      if(!destinationText()) { toast('Hãy nhập tọa độ hoặc link Google Maps trước khi in.'); return; }
+      updatePaperUi();
+      applyPrintPageStyle();
+      updateMap();
+      requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
     };
     els.btnPrint.addEventListener('click', doPrint);
     els.btnPrint2.addEventListener('click', doPrint);
@@ -986,7 +1066,7 @@
 
     if(els.btnRefreshAll){
       els.btnRefreshAll.addEventListener('click', () => {
-        updateMap(); updateMarker(); renderQr(); updateNote(); updateAddressOutput(); renderRoadLabels(false); updatePaperUi();
+        updateMap(); updateMarker(); renderQr(); updateNote(); updateAddressOutput(); setExportProgress(0,'Sẵn sàng',true); renderRoadLabels(false); updatePaperUi();
         toast('Đã cập nhật bản xem trước.');
       });
     }
@@ -1062,7 +1142,7 @@
   updatePaperUi();
   setApiKeyStatus('neutral','Không dùng API');
   setPreviewSyncStatus('ok','Xem trước = Xuất');
-  updateMap(); updateMarker(); renderQr(); updateNote(); updateAddressOutput();
+  updateMap(); updateMarker(); renderQr(); updateNote(); updateAddressOutput(); setExportProgress(0,'Sẵn sàng',true);
 })();
 
 

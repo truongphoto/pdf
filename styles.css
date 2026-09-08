@@ -586,3 +586,21 @@ body.screen-export-mode .sheet-viewport{margin:0!important;overflow:visible!impo
 body.screen-export-mode .sheet{margin:0!important;box-shadow:none!important;outline:0!important;transform-origin:top left!important}
 body.screen-export-mode .road-rotate{display:none!important}
 body.screen-export-mode .marker-wrap,body.screen-export-mode .road-label{cursor:default!important}
+
+
+/* ===== v21: In trực tiếp + Export PDF chạy ngầm, tiến trình tại thanh xem trước ===== */
+.export-progress{width:210px;min-width:160px;padding:5px 8px;border:1px solid #cfe0e8;border-radius:9px;background:#fff;box-shadow:0 3px 10px rgba(23,57,77,.05)}
+.export-progress-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:.66rem;color:#496979;line-height:1.1}
+.export-progress-head strong{font-size:.66rem;color:var(--brand-blue,#0b6a95)}
+.export-progress-track{height:4px;margin-top:5px;border-radius:99px;background:#e7eef2;overflow:hidden}
+.export-progress-track i{display:block;width:0;height:100%;border-radius:99px;background:linear-gradient(90deg,#0b6a95,#12a368);transition:width .18s ease}
+.preview-toolbar.export-busy .preview-status-dot{animation:v21Pulse 1s ease-in-out infinite}
+@keyframes v21Pulse{0%,100%{opacity:.45;transform:scale(.85)}50%{opacity:1;transform:scale(1.2)}}
+.export-map-surface{position:absolute;inset:0;z-index:3;display:none;background:#eef2f3}
+body.pdf-exporting .export-map-surface{display:block!important}
+body.pdf-exporting #mapIframe,body.pdf-exporting #staticMapImage{display:none!important}
+body.pdf-exporting .leaflet-control-zoom{display:none!important}
+body.pdf-exporting .leaflet-control-attribution{font-size:7px!important;background:rgba(255,255,255,.82)!important;padding:1px 3px!important}
+.address-output{display:none!important}
+@media(max-width:900px){.export-progress{width:160px}.export-progress-head{font-size:.61rem}}
+@media print{.export-progress{display:none!important}.preview-sync-status{display:none!important}}

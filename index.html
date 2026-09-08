@@ -9,10 +9,14 @@
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png"/>
 <link rel="manifest" href="manifest.json"/>
 <meta name="theme-color" content="#1677e8"/>
-<link href="styles.css?v=20" rel="stylesheet"/>
+<link href="styles.css?v=21" rel="stylesheet"/>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 <script defer="" src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script defer="" src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script defer="" src="app.js?v=20"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script defer="" src="app.js?v=21"></script>
 </head>
 <body>
 <header class="topbar">
@@ -60,12 +64,9 @@
 <div class="control-panel-card">
 <section class="collapsible-section primary-section"><details open><summary class="section-summary"><span class="section-summary-title">1. Vị trí thẩm định</span></summary><div class="section-body">
 <label>Tên vị trí thẩm định
-          <input id="placeName" maxlength="90" placeholder="Ví dụ: NHÀ THUỐC MINH ANH" type="text"/>
+          <input id="placeName" maxlength="90" placeholder="Ví dụ: NHÀ THUỐC ABC" type="text"/>
 </label>
-<label>Địa chỉ theo hồ sơ
-          <input id="address" placeholder="Số nhà, đường, phường/xã, tỉnh/thành..." type="text"/>
-          <span class="field-help">Nội dung này sẽ hiển thị trên biểu mẫu. Bản đồ ưu tiên tọa độ hoặc link Google Maps; chỉ dùng địa chỉ để tìm vị trí khi chưa có tọa độ.</span>
-</label>
+<input id="address" type="hidden" value=""/>
 <label>Link Google Maps
           <div class="inline-row">
 <input id="mapsUrl" placeholder="Dán link Google Maps đầy đủ" type="url"/>
@@ -105,13 +106,13 @@
 
 <p class="hint">Không bắt buộc. Có thể chọn mẫu, tải bất kỳ logo/icon nào hoặc không dùng biểu tượng.</p>
 <div class="icon-grid" id="iconChoices">
-<button class="icon-choice active" data-default-label="CƠ SỞ Y TẾ" data-icon="assets/icons/y-te.svg" title="Chọn biểu tượng Cơ Sở Y Tế" type="button"><img alt="" src="assets/icons/y-te.svg"/><span>Y tế</span></button>
-<button class="icon-choice" data-default-label="QUẦY THUỐC" data-icon="assets/icons/quay-thuoc.svg" title="Chọn biểu tượng Quầy Thuốc" type="button"><img alt="" src="assets/icons/quay-thuoc.svg"/><span>Quầy thuốc</span></button>
-<button class="icon-choice" data-default-label="NHÀ THUỐC" data-icon="assets/icons/nha-thuoc.svg" title="Chọn biểu tượng Nhà Thuốc" type="button"><img alt="" src="assets/icons/nha-thuoc.svg"/><span>Nhà thuốc</span></button>
-<button class="icon-choice" data-default-label="CÔNG TY DƯỢC" data-icon="assets/icons/cong-ty-duoc.svg" title="Chọn biểu tượng Công Ty Dược" type="button"><img alt="" src="assets/icons/cong-ty-duoc.svg"/><span>Cty dược</span></button>
-<button class="icon-choice" data-default-label="PHÒNG KHÁM" data-icon="assets/icons/phong-kham.svg" title="Chọn biểu tượng Phòng Khám" type="button"><img alt="" src="assets/icons/phong-kham.svg"/><span>Phòng khám</span></button>
-<button class="icon-choice" data-default-label="BỆNH VIỆN" data-icon="assets/icons/benh-vien.svg" title="Chọn biểu tượng Bệnh Viện" type="button"><img alt="" src="assets/icons/benh-vien.svg"/><span>Bệnh viện</span></button>
-<button class="icon-choice" data-default-label="" data-icon="none" title="Không dùng biểu tượng" type="button"><span class="none-icon">-</span><span>Không dùng</span></button>
+<button class="icon-choice active" data-icon="assets/icons/y-te.svg" title="Chọn biểu tượng Cơ Sở Y Tế" type="button"><img alt="" src="assets/icons/y-te.svg"/><span>Y tế</span></button>
+<button class="icon-choice" data-icon="assets/icons/quay-thuoc.svg" title="Chọn biểu tượng Quầy Thuốc" type="button"><img alt="" src="assets/icons/quay-thuoc.svg"/><span>Quầy thuốc</span></button>
+<button class="icon-choice" data-icon="assets/icons/nha-thuoc.svg" title="Chọn biểu tượng Nhà Thuốc" type="button"><img alt="" src="assets/icons/nha-thuoc.svg"/><span>Nhà thuốc</span></button>
+<button class="icon-choice" data-icon="assets/icons/cong-ty-duoc.svg" title="Chọn biểu tượng Công Ty Dược" type="button"><img alt="" src="assets/icons/cong-ty-duoc.svg"/><span>Cty dược</span></button>
+<button class="icon-choice" data-icon="assets/icons/phong-kham.svg" title="Chọn biểu tượng Phòng Khám" type="button"><img alt="" src="assets/icons/phong-kham.svg"/><span>Phòng khám</span></button>
+<button class="icon-choice" data-icon="assets/icons/benh-vien.svg" title="Chọn biểu tượng Bệnh Viện" type="button"><img alt="" src="assets/icons/benh-vien.svg"/><span>Bệnh viện</span></button>
+<button class="icon-choice" data-icon="none" title="Không dùng biểu tượng" type="button"><span class="none-icon">-</span><span>Không dùng</span></button>
 <button class="icon-choice custom" id="btnCustomIcon" type="button"><span class="upload-icon">+</span><span>Tải icon khác</span></button>
 </div>
 <input accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden="" id="customIconInput" type="file"/>
@@ -199,7 +200,7 @@ Ngã tư Trung Lương" rows="4"></textarea>
   <button class="btn" id="btnCopyLink" type="button">Sao chép link</button>
 </div>
 <div class="direct-export-note">
-  <strong>Export PDF không cần API:</strong> phần mềm chụp trực tiếp bản xem trước, gồm cả Google Maps, rồi đưa nguyên trang vào PDF. Khi trình duyệt hỏi quyền chia sẻ, hãy chọn <strong>tab hiện tại</strong>.
+  <strong>Export PDF tự động:</strong> chạy ngầm, không mở hộp thoại In và không hỏi quyền chụp màn hình. QR vẫn mở Google Maps; bản PDF dùng nền bản đồ hồ sơ ở đúng tọa độ để xuất ổn định.
 </div>
 <input id="googleApiKey" type="hidden" value=""/>
 </div></details></section>
@@ -220,7 +221,11 @@ Ngã tư Trung Lương" rows="4"></textarea>
       <button type="button" class="paper-quick-btn" id="btnPaperA4" data-paper="a4">A4</button>
     </div>
     <span class="preview-meta" id="previewMeta">Biểu mẫu gốc • Letter 8.5 × 11 inch</span>
-    <span class="preview-sync-status warning" id="previewSyncStatus" title="In/PDF lấy trực tiếp từ bản xem trước, không cần Google Static Maps API.">Xem trước = Xuất</span>
+    <span class="preview-sync-status warning" id="previewSyncStatus" title="In dùng trực tiếp trang hiện tại; PDF chạy ngầm và tự tải file.">Sẵn sàng</span>
+    <div id="exportProgress" class="export-progress hidden" aria-live="polite">
+      <div class="export-progress-head"><span id="exportProgressText">Đang xử lý…</span><strong id="exportProgressPct">0%</strong></div>
+      <div class="export-progress-track"><i id="exportProgressBar"></i></div>
+    </div>
   </div>
 </div>
 <div class="sheet-viewport" id="sheetViewport">
@@ -228,6 +233,7 @@ Ngã tư Trung Lương" rows="4"></textarea>
 <img alt="Biểu mẫu sơ đồ địa điểm kinh doanh" class="template" src="assets/so-do-dia-diem-template.png">
 <div class="map-frame" id="mapFrame">
 <iframe id="mapIframe" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Google Maps"></iframe>
+<div id="exportMapSurface" class="export-map-surface" aria-hidden="true"></div>
 <img alt="Google Maps tĩnh" class="static-map hidden" crossorigin="anonymous" id="staticMapImage">
 <div class="map-empty" id="mapEmpty">Nhập địa chỉ hoặc tọa độ để hiển thị bản đồ.</div>
 <div aria-label="Nhãn tên đường thủ công" class="road-labels-layer" id="roadLabelsLayer"></div>
@@ -235,7 +241,7 @@ Ngã tư Trung Lương" rows="4"></textarea>
 <img alt="Biểu tượng vị trí" id="markerIcon" src="assets/icons/y-te.svg">
 <div class="place-label" id="placeLabel">VỊ TRÍ THẨM ĐỊNH</div>
 </div>
-<div class="address-output hidden" id="addressOutput"><strong>Địa chỉ:</strong> <span></span></div>
+<div class="address-output hidden" id="addressOutput"></div>
 </div>
 <div class="direction north">Hướng Bắc</div>
 <div class="direction south">Hướng Nam</div>
