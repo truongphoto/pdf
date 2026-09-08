@@ -5,16 +5,17 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
 <title>QR Chỉ dẫn địa điểm thẩm định | Trường GPP</title>
+<meta name="app-version" content="25.0"/>
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-y-te-32.png"/>
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png"/>
 <link rel="manifest" href="manifest.json"/>
 <meta name="theme-color" content="#1677e8"/>
-<link href="styles.css?v=24" rel="stylesheet"/>
+<link href="styles.css?v=25" rel="stylesheet"/>
 
 <script defer="" src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script defer="" src="app.js?v=24"></script>
-<script defer src="fix-v24.js?v=24.3"></script>
+<script defer="" src="app.js?v=25"></script>
+<script defer src="v25.js?v=25"></script>
 </head>
 <body>
 <header class="topbar">
@@ -84,7 +85,7 @@
 </div>
 <div class="two-col">
 <label>Độ phóng bản đồ
-            <input id="zoom" max="20" min="13" type="range" value="18"/>
+            <input id="zoom" max="19" min="13" type="range" value="18"/>
 <span class="range-value"><span id="zoomValue">18</span></span>
 </label>
 <label>QR chỉ đường
@@ -99,9 +100,11 @@
 <div class="button-row">
 <button class="btn" id="btnOpenMap" type="button">Mở Google Maps</button>
 <button class="btn" id="btnTestQr" type="button">Kiểm tra QR chỉ đường</button>
+<button class="btn" id="btnRefreshRecordMap" type="button">Làm mới bản đồ hồ sơ</button>
 </div>
+<label class="record-map-option"><input id="poiEnabled" type="checkbox" checked/> <span><strong>Hiển thị địa điểm nhận biết</strong><small>Tự bổ sung tên cơ sở, trường học, y tế, cửa hàng, địa danh… từ dữ liệu bản đồ mở.</small></span></label>
 <p class="status" id="locationStatus"></p>
-<p class="hint">Nếu tên đường chưa rõ, tăng zoom hoặc kéo ghim sang vị trí trống để tránh che chữ trên bản đồ.</p>
+<p class="hint">Bản đồ hồ sơ là bản dùng trực tiếp cho PDF. Google Maps chỉ dùng để tham chiếu và mở QR chỉ đường.</p>
 </div></details></section>
 <section class="collapsible-section"><details><summary class="section-summary"><span class="section-summary-title">2. Biểu tượng đánh dấu</span></summary><div class="section-body">
 
@@ -201,7 +204,7 @@ Ngã tư gần cơ sở" rows="4"></textarea>
   <button class="btn" id="btnCopyLink" type="button">Sao chép link</button>
 </div>
 <div class="direct-export-note">
-  <strong>Export PDF tự động:</strong> chạy ngầm, không mở hộp thoại In và không hỏi quyền. Bản đồ PDF được dựng độ phân giải cao tại đúng vị trí; QR vẫn mở Google Maps.
+  <strong>Export PDF 1:1:</strong> PDF dùng đúng bản đồ hồ sơ đang thấy trên màn hình, không đổi nguồn khi xuất. Chạy ngầm, không hỏi quyền và không mở hộp thoại In.
 </div>
 <input id="googleApiKey" type="hidden" value=""/>
 </div></details></section>
@@ -222,7 +225,7 @@ Ngã tư gần cơ sở" rows="4"></textarea>
       <button type="button" class="paper-quick-btn" id="btnPaperA4" data-paper="a4">A4</button>
     </div>
     <span class="preview-meta" id="previewMeta">Biểu mẫu gốc • Letter 8.5 × 11 inch</span>
-    <span class="preview-sync-status warning" id="previewSyncStatus" title="In mở hộp thoại in trực tiếp; PDF chạy ngầm và tự tải file.">Sẵn sàng</span>
+    <span class="preview-sync-status warning" id="previewSyncStatus" title="Bản đồ hồ sơ trên màn hình chính là bản được đưa vào PDF.">1:1 Preview/PDF</span>
     <div id="exportProgress" class="export-progress hidden" aria-live="polite">
       <div class="export-progress-head"><span id="exportProgressText">Đang xử lý…</span><strong id="exportProgressPct">0%</strong></div>
       <div class="export-progress-track"><i id="exportProgressBar"></i></div>
@@ -233,7 +236,9 @@ Ngã tư gần cơ sở" rows="4"></textarea>
 <div class="sheet" id="sheet">
 <img alt="Biểu mẫu sơ đồ địa điểm kinh doanh" class="template" src="assets/so-do-dia-diem-template.png">
 <div class="map-frame" id="mapFrame">
-<iframe id="mapIframe" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Google Maps"></iframe>
+<iframe id="mapIframe" class="google-reference-map" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Google Maps tham chiếu"></iframe>
+<img id="recordMapImage" class="record-map-image hidden" alt="Bản đồ hồ sơ dùng cho xem trước và PDF"/>
+<div id="recordMapStatus" class="record-map-status hidden">Đang tạo bản đồ hồ sơ…</div>
 <img id="exportMapSurface" class="export-map-surface" alt="Bản đồ nền dùng khi xuất PDF" aria-hidden="true"/>
 <img alt="Google Maps tĩnh" class="static-map hidden" crossorigin="anonymous" id="staticMapImage">
 <div class="map-empty" id="mapEmpty">Nhập địa chỉ hoặc tọa độ để hiển thị bản đồ.</div>
