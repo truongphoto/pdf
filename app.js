@@ -1,5 +1,6 @@
 (() => {
   'use strict';
+  // v23: sửa địa chỉ, jsPDF CDN, kiểm tra thư viện và xuất PDF an toàn.
 
   const $ = (id) => document.getElementById(id);
   const els = {
@@ -369,11 +370,19 @@
   }
 
   function updateAddressOutput(){
-    if(!els.addressOutput) return;
-    const value = els.address.value.trim();
-    const span = els.addressOutput.querySelector('span');
-    if(span) span.textContent = value;
-    els.addressOutput.classList.toggle('hidden', !value);
+    if(!els.addressOutput || !els.address) return;
+    const value=els.address.value.trim();
+    els.addressOutput.replaceChildren();
+    if(value){
+      const strong=document.createElement('strong');
+      strong.textContent='Địa chỉ:';
+      els.addressOutput.append(strong, document.createTextNode(` ${value}`));
+      els.addressOutput.classList.remove('hidden');
+      els.addressOutput.style.display='block';
+    }else{
+      els.addressOutput.classList.add('hidden');
+      els.addressOutput.style.removeProperty('display');
+    }
   }
 
   function directionsUrl(){
@@ -716,10 +725,102 @@
     window.addEventListener('pointercancel', stopDragging);
   }
 
+  function loadScriptWithFallback(urls, readyCheck){
+    if(readyCheck()) return Promise.resolve();
+    return new Promise((resolve,reject)=>{
+      let index=0;
+      const next=()=>{
+        if(readyCheck()){resolve();return;}
+        if(index>=urls.length){reject(new Error('library-load-failed'));return;}
+        const src=urls[index++];
+        const existing=[...document.scripts].find(s=>s.src===src);
+        if(existing){
+          // Script đã tồn tại nhưng global chưa sẵn sàng: chuyển ngay sang CDN dự phòng.
+          next();
+          return;
+        }
+        const script=document.createElement('script');
+        script.src=src; script.async=true;
+        script.onload=()=>readyCheck()?resolve():next();
+        script.onerror=next;
+        document.head.appendChild(script);
+      };
+      next();
+    });
+  }
+
+  async function ensureExportLibraries(){
+    await loadScriptWithFallback([
+      'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+      'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'
+    ],()=>typeof window.html2canvas==='function');
+  }
+
+  function dataUrlToBytes(dataUrl){
+    const comma=dataUrl.indexOf(',');
+    if(comma<0) throw new Error('invalid-image-data');
+    const bin=atob(dataUrl.slice(comma+1));
+    const out=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
+    return out;
+  }
+
+  function asciiBytes(text){
+    return new TextEncoder().encode(text);
+  }
+
+  function concatBytes(parts){
+    const size=parts.reduce((n,p)=>n+p.length,0);
+    const out=new Uint8Array(size);
+    let pos=0;
+    for(const p of parts){out.set(p,pos);pos+=p.length;}
+    return out;
+  }
+
+  function buildSinglePagePdfFromJpeg(jpegDataUrl, imageWidth, imageHeight, mode){
+    const jpeg=dataUrlToBytes(jpegDataUrl);
+    if(jpeg.length<1000) throw new Error('invalid-image-data');
+    const isA4=mode==='a4';
+    const pageW=isA4?595.276:612;
+    const pageH=isA4?841.89:792;
+    const content=`q\n${pageW.toFixed(3)} 0 0 ${pageH.toFixed(3)} 0 0 cm\n/Im0 Do\nQ\n`;
+    const objects=[
+      asciiBytes('<< /Type /Catalog /Pages 2 0 R >>'),
+      asciiBytes('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'),
+      asciiBytes(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW.toFixed(3)} ${pageH.toFixed(3)}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`),
+      concatBytes([asciiBytes(`<< /Type /XObject /Subtype /Image /Width ${Math.round(imageWidth)} /Height ${Math.round(imageHeight)} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`),jpeg,asciiBytes('\nendstream')]),
+      asciiBytes(`<< /Length ${asciiBytes(content).length} >>\nstream\n${content}endstream`)
+    ];
+    const parts=[asciiBytes('%PDF-1.4\n%âãÏÓ\n')];
+    const offsets=[0];
+    let cursor=parts[0].length;
+    objects.forEach((obj,i)=>{
+      offsets[i+1]=cursor;
+      const head=asciiBytes(`${i+1} 0 obj\n`), tail=asciiBytes('\nendobj\n');
+      parts.push(head,obj,tail); cursor+=head.length+obj.length+tail.length;
+    });
+    const xrefOffset=cursor;
+    let xref=`xref\n0 ${objects.length+1}\n0000000000 65535 f \n`;
+    for(let i=1;i<=objects.length;i++) xref+=`${String(offsets[i]).padStart(10,'0')} 00000 n \n`;
+    xref+=`trailer\n<< /Size ${objects.length+1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    parts.push(asciiBytes(xref));
+    return new Blob([concatBytes(parts)],{type:'application/pdf'});
+  }
+
+  function downloadBlob(blob, filename){
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=filename; a.style.display='none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},1200);
+  }
+
   function setExportProgress(percent, text, done=false){
     const p = Math.max(0, Math.min(100, Math.round(percent || 0)));
     if(els.exportProgress){
       els.exportProgress.classList.toggle('hidden', done);
+      els.exportProgress.classList.remove('error');
       if(els.exportProgressPct) els.exportProgressPct.textContent = `${p}%`;
       if(els.exportProgressText) els.exportProgressText.textContent = text || 'Đang xử lý…';
       if(els.exportProgressBar) els.exportProgressBar.style.width = `${p}%`;
@@ -740,16 +841,35 @@
     return {x,y};
   }
 
-  async function loadTileBitmap(url){
-    const res = await fetch(url, {mode:'cors', cache:'force-cache'});
-    if(!res.ok) throw new Error(`tile-${res.status}`);
-    const blob = await res.blob();
-    if('createImageBitmap' in window) return await createImageBitmap(blob);
-    return await new Promise((resolve,reject)=>{
-      const img = new Image();
-      img.onload=()=>resolve(img); img.onerror=()=>reject(new Error('tile-image-error'));
-      img.src=URL.createObjectURL(blob);
-    });
+  async function loadTileBitmap(url, timeout=8000){
+    const controller = 'AbortController' in window ? new AbortController() : null;
+    const timer = setTimeout(()=>{ try{controller&&controller.abort();}catch(_){} }, timeout);
+    try{
+      const res = await fetch(url, {mode:'cors', cache:'force-cache', signal:controller?controller.signal:undefined});
+      if(!res.ok) throw new Error(`tile-${res.status}`);
+      const blob = await res.blob();
+      if('createImageBitmap' in window) return await createImageBitmap(blob);
+      return await new Promise((resolve,reject)=>{
+        const img = new Image();
+        const objectUrl=URL.createObjectURL(blob);
+        img.onload=()=>{URL.revokeObjectURL(objectUrl);resolve(img);};
+        img.onerror=()=>{URL.revokeObjectURL(objectUrl);reject(new Error('tile-image-error'));};
+        img.src=objectUrl;
+      });
+    }finally{ clearTimeout(timer); }
+  }
+
+  async function loadMapTileWithFallback(z,x,y){
+    const providers=[
+      `https://a.basemaps.cartocdn.com/light_all/${z}/${x}/${y}@2x.png`,
+      `https://b.basemaps.cartocdn.com/light_all/${z}/${x}/${y}@2x.png`,
+      `https://tile.openstreetmap.org/${z}/${x}/${y}.png`
+    ];
+    let lastError=null;
+    for(const url of providers){
+      try{return await loadTileBitmap(url,7000);}catch(err){lastError=err;}
+    }
+    throw lastError || new Error('tile-load-failed');
   }
 
   async function buildHighResExportMap(coords){
@@ -781,10 +901,8 @@
       if(ty<0 || ty>=maxTile) continue;
       for(let tx=minTX; tx<=maxTX; tx++){
         const wrappedX=((tx%maxTile)+maxTile)%maxTile;
-        const sub=['a','b','c','d'][(Math.abs(tx+ty))%4];
-        const url=`https://${sub}.basemaps.cartocdn.com/light_all/${tileZoom}/${wrappedX}/${ty}@2x.png`;
         const dx=(tx*256-left)*scale, dy=(ty*256-top)*scale;
-        jobs.push({url,dx,dy});
+        jobs.push({z:tileZoom,x:wrappedX,y:ty,dx,dy});
       }
     }
 
@@ -792,7 +910,7 @@
     const total=Math.max(1,jobs.length);
     await Promise.all(jobs.map(async job=>{
       try{
-        const img=await loadTileBitmap(job.url);
+        const img=await loadMapTileWithFallback(job.z,job.x,job.y);
         ctx.drawImage(img,job.dx,job.dy,256*scale,256*scale);
         if(img && typeof img.close==='function') try{img.close();}catch(_){}
         loaded++;
@@ -800,7 +918,7 @@
       const pct=18 + Math.round(((loaded+failed)/total)*34);
       setExportProgress(pct,'Đang dựng bản đồ chất lượng cao…');
     }));
-    if(!loaded) throw new Error('map-tiles-failed');
+    if(!loaded || loaded < Math.ceil(total*0.6)) throw new Error('map-tiles-failed');
 
     // Attribution bắt buộc cho nền bản đồ OSM/CARTO.
     const credit='© OpenStreetMap contributors • © CARTO';
@@ -840,7 +958,7 @@
       if(document.fonts && document.fonts.ready) await document.fonts.ready;
       await nextPaint();
       return await html2canvasFn(els.sheet, {
-        scale:2.7,
+        scale:3.0,
         useCORS:true,
         allowTaint:false,
         backgroundColor:'#ffffff',
@@ -868,20 +986,20 @@
     if(!destinationText()){ toast('Hãy nhập tọa độ, link Google Maps hoặc địa chỉ trước khi Export PDF.'); return; }
     exportBusy=true;
     try{
-      setExportProgress(8,'Chuẩn bị bản đồ…');
+      setExportProgress(4,'Kiểm tra thư viện xuất…');
+      await ensureExportLibraries();
+      setExportProgress(10,'Chuẩn bị bản đồ…');
       await nextPaint();
       setExportProgress(28,'Đang tải nền bản đồ…');
       const canvas = await silentSheetCanvas();
+      if(!canvas || canvas.width < 1000 || canvas.height < 1400) throw new Error('invalid-export-canvas');
       setExportProgress(76,'Đang tạo PDF chất lượng cao…');
-      const JsPdfCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
-      if(typeof JsPdfCtor!=='function') throw new Error('missing-jspdf');
-      const isA4=paperMode()==='a4';
-      const pageWidth=isA4?210:215.9, pageHeight=isA4?297:279.4;
-      const pdf=new JsPdfCtor({unit:'mm',format:isA4?'a4':'letter',orientation:'portrait',compress:true});
-      const png=canvas.toDataURL('image/png');
-      pdf.addImage(png,'PNG',0,0,pageWidth,pageHeight,undefined,'FAST');
+      const jpeg=canvas.toDataURL('image/jpeg',0.985);
+      setExportProgress(86,'Đang đóng gói PDF…');
+      const pdfBlob=buildSinglePagePdfFromJpeg(jpeg,canvas.width,canvas.height,paperMode());
+      if(!pdfBlob || pdfBlob.size < 5000) throw new Error('invalid-pdf-output');
       setExportProgress(94,'Đang lưu file…');
-      pdf.save(`${safeBaseName()}-${paperMode().toUpperCase()}.pdf`);
+      downloadBlob(pdfBlob,`${safeBaseName()}-${paperMode().toUpperCase()}.pdf`);
       setExportProgress(100,'Hoàn tất');
       setTimeout(()=>setExportProgress(100,'Sẵn sàng',true),900);
       toast('Đã xuất PDF chất lượng cao.');
@@ -889,130 +1007,29 @@
       console.error(err);
       finishSilentExportMap();
       setExportProgress(0,'Có lỗi khi xuất',false);
+      if(els.exportProgress) els.exportProgress.classList.add('error');
+      if(els.previewSyncStatus){els.previewSyncStatus.classList.remove('ok');els.previewSyncStatus.classList.add('error');}
       setTimeout(()=>setExportProgress(0,'Sẵn sàng',true),1800);
       if(err&&err.message==='missing-coordinates') toast('Không xác định được vị trí. Hãy nhập tọa độ, link Google Maps hoặc kiểm tra lại địa chỉ.');
-      else if(err&&err.message==='map-tiles-failed') toast('Không tải được nền bản đồ. Kiểm tra Internet rồi thử lại.');
+      else if(err&&err.message==='map-tiles-failed') toast('Không tải đủ nền bản đồ. Kiểm tra Internet rồi thử lại.');
+      else if(err&&err.message==='library-load-failed') toast('Không tải được thư viện tạo PDF. Kiểm tra Internet rồi thử lại.');
+      else if(err&&err.message==='missing-html2canvas') toast('Thư viện chụp biểu mẫu chưa sẵn sàng. Hãy tải lại trang rồi thử lại.');
+      else if(err&&['invalid-export-canvas','invalid-pdf-output'].includes(err.message)) toast('Bản xuất chưa hoàn chỉnh nên phần mềm đã dừng để tránh tải file lỗi.');
       else toast('Chưa tạo được PDF. Vui lòng thử lại.');
     }finally{ exportBusy=false; }
   }
 
-  function screenCaptureSupported(){
-    return !!(navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === 'function');
-  }
 
-  function enterScreenExportMode(){
-    const dims = canonicalPagePx();
-    document.body.classList.add('screen-export-mode');
-    const pad = 12;
-    const scale = Math.min(1, (window.innerWidth - pad) / dims.width, (window.innerHeight - pad) / dims.height);
-    els.sheet.style.transform = `scale(${scale})`;
-    els.sheetViewport.style.width = `${Math.round(dims.width * scale)}px`;
-    els.sheetViewport.style.height = `${Math.round(dims.height * scale)}px`;
-  }
-
-  function leaveScreenExportMode(){
-    document.body.classList.remove('screen-export-mode');
-    requestAnimationFrame(fitPreviewSheet);
-  }
-
-  async function captureVisibleSheetCanvas(){
-    if(!screenCaptureSupported()) throw new Error('screen-capture-unsupported');
-    let stream = null;
-    let captureMode = false;
-    try{
-      // QUAN TRỌNG: getDisplayMedia phải được gọi NGAY trong thao tác click của người dùng.
-      // Không được await/setTimeout trước lệnh này, nếu không Chrome/Edge có thể mất
-      // "transient user activation" và từ chối chụp dù trang đang chạy HTTPS/GitHub Pages.
-      toast('Chọn “Tab này / This Tab” rồi bấm Chia sẻ.');
-      stream = await navigator.mediaDevices.getDisplayMedia({
-        video:true,
-        audio:false,
-        preferCurrentTab:true,
-        selfBrowserSurface:'include'
-      });
-      const track = stream.getVideoTracks()[0];
-      if(!track) throw new Error('capture-no-video-track');
-      const settings = track.getSettings ? track.getSettings() : {};
-      if(settings.displaySurface && settings.displaySurface !== 'browser'){
-        throw new Error('choose-current-tab');
-      }
-
-      enterScreenExportMode();
-      captureMode = true;
-      await nextPaint();
-      await nextPaint();
-
-      const video = document.createElement('video');
-      video.muted = true;
-      video.playsInline = true;
-      video.srcObject = stream;
-      await new Promise((resolve,reject)=>{
-        const timer=setTimeout(()=>reject(new Error('capture-timeout')),8000);
-        video.onloadedmetadata=()=>{clearTimeout(timer);resolve();};
-        video.onerror=()=>{clearTimeout(timer);reject(new Error('capture-video-error'));};
-      });
-      await video.play();
-      await new Promise(resolve=>setTimeout(resolve,450));
-
-      const rect = els.sheet.getBoundingClientRect();
-      const scaleX = video.videoWidth / window.innerWidth;
-      const scaleY = video.videoHeight / window.innerHeight;
-      const sx = Math.max(0, Math.round(rect.left * scaleX));
-      const sy = Math.max(0, Math.round(rect.top * scaleY));
-      const sw = Math.min(video.videoWidth - sx, Math.round(rect.width * scaleX));
-      const sh = Math.min(video.videoHeight - sy, Math.round(rect.height * scaleY));
-      if(sw < 200 || sh < 300) throw new Error('capture-bounds');
-
-      const canvas = document.createElement('canvas');
-      canvas.width = sw;
-      canvas.height = sh;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0,0,sw,sh);
-      ctx.drawImage(video,sx,sy,sw,sh,0,0,sw,sh);
-      return canvas;
-    }finally{
-      if(stream) stream.getTracks().forEach(t=>t.stop());
-      if(captureMode) leaveScreenExportMode();
-    }
-  }
-
-  async function exportPdfFromVisiblePreview(){
-    const JsPdfCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-    if(typeof JsPdfCtor !== 'function') throw new Error('missing-jspdf');
-    const canvas = await captureVisibleSheetCanvas();
-    const isA4 = paperMode() === 'a4';
-    const pageWidth = isA4 ? 210 : 215.9;
-    const pageHeight = isA4 ? 297 : 279.4;
-    const pdf = new JsPdfCtor({unit:'mm',format:isA4?'a4':'letter',orientation:'portrait',compress:true});
-    pdf.addImage(canvas.toDataURL('image/jpeg',0.96),'JPEG',0,0,pageWidth,pageHeight,undefined,'FAST');
-    pdf.save(`${safeBaseName()}-${paperMode().toUpperCase()}.pdf`);
-  }
-
-  async function printFromVisiblePreview(){
-    const printWindow = window.open('', '_blank');
-    if(!printWindow) throw new Error('popup-blocked');
-    printWindow.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Đang chuẩn bị in…</title></head><body style="font-family:Arial,sans-serif;padding:24px">Đang chụp bản xem trước…</body></html>');
-    try{
-      const canvas = await captureVisibleSheetCanvas();
-      const dataUrl = canvas.toDataURL('image/jpeg',0.97);
-      const pageCss = paperMode()==='a4' ? 'A4' : 'Letter';
-      printWindow.document.open();
-      printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${safeBaseName()}</title><style>@page{size:${pageCss} portrait;margin:0}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#fff}img{display:block;width:100%;height:100%;object-fit:fill;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head><body><img id="printImage" src="${dataUrl}" alt="Bản in"></body></html>`);
-      printWindow.document.close();
-      const img = printWindow.document.getElementById('printImage');
-      const fire = ()=>setTimeout(()=>{try{printWindow.focus();printWindow.print();}catch(_){}},80);
-      if(img.complete) fire(); else img.onload=fire;
-    }catch(err){
-      try{printWindow.close();}catch(_){}
-      throw err;
-    }
-  }
 
   function bind(){
     ['input','change'].forEach(evt => {
       [els.placeName,els.address,els.lat,els.lng,els.zoom,els.travelMode,els.markerSize,els.qrLogoMode,els.qrLogoSize,els.note].forEach(el => el.addEventListener(evt, scheduleUpdate));
     });
+
+    if(els.address){
+      els.address.addEventListener('input', updateAddressOutput);
+      els.address.addEventListener('change', updateAddressOutput);
+    }
 
     if(els.noteEnabled){
       els.noteEnabled.addEventListener('change', () => { updateNote(); });

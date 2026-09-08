@@ -1,6 +1,6 @@
-const CACHE_VERSION = 'qr-tham-dinh-v22-fix-export-address';
+const CACHE_VERSION = 'qr-tham-dinh-v24-2-address-pdf-core';
 const APP_SHELL = [
-  './', './index.html', './styles.css?v=22', './app.js?v=22', './manifest.json',
+  './', './index.html', './styles.css?v=24', './app.js?v=24', './fix-v24.js?v=24.2', './manifest.json',
   './assets/brand-truong-gpp.png', './assets/favicon-y-te-32.png',
   './assets/apple-touch-icon.png', './assets/app-icon-192.png', './assets/app-icon-512.png',
   './assets/app-icon-maskable-512.png', './assets/so-do-dia-diem-template.png',

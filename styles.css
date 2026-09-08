@@ -623,3 +623,19 @@ body.pdf-exporting .address-output{font-size:10px!important;background:#fff!impo
 @media print{
   .address-output{font-size:7.5pt!important;padding:3pt 5pt!important;background:#fff!important;box-shadow:none!important}
 }
+
+
+/* ===== v23: địa chỉ hiển thị chắc chắn + trạng thái Export ổn định ===== */
+.address-output{display:block!important}
+.address-output.hidden{display:none!important}
+.address-output strong{font-weight:700!important}
+.address-output span{font-weight:400!important}
+.preview-sync-status.ok{background:#eef9f3!important;border-color:#bfe2d0!important;color:#14724a!important}
+.preview-sync-status.error{background:#fff0ef!important;border-color:#efc4bf!important;color:#a13a30!important}
+.export-progress.error{border-color:#efc4bf!important;background:#fff8f7!important}
+.export-progress.error .export-progress-track i{background:#c7473c!important}
+
+
+/* ===== v24: địa chỉ hiển thị tức thời + PDF tích hợp ===== */
+.address-output:not(.hidden){display:block!important;z-index:12!important}
+.export-progress.error .export-progress-track i{width:100%!important}
