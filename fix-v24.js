@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const VERSION='24.2';
+  const VERSION='24.3';
   window.__QR_EXPORT_PATCH_VERSION__=VERSION;
   const $=id=>document.getElementById(id);
   const address=$('address'), addressOutput=$('addressOutput');
@@ -98,11 +98,13 @@
     }finally{clearTimeout(t)}
   }
   async function tileWithFallback(z,x,y){
+    // Chỉ dùng OpenStreetMap chuẩn. Không dùng CARTO vì một số endpoint
+    // hiện trả tile có watermark "API KEY REQUIRED", làm file PDF không sử dụng được.
     const urls=[
-      `https://a.basemaps.cartocdn.com/light_all/${z}/${x}/${y}@2x.png`,
-      `https://b.basemaps.cartocdn.com/light_all/${z}/${x}/${y}@2x.png`,
-      `https://c.basemaps.cartocdn.com/light_all/${z}/${x}/${y}@2x.png`,
-      `https://tile.openstreetmap.org/${z}/${x}/${y}.png`
+      `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
+      `https://a.tile.openstreetmap.org/${z}/${x}/${y}.png`,
+      `https://b.tile.openstreetmap.org/${z}/${x}/${y}.png`,
+      `https://c.tile.openstreetmap.org/${z}/${x}/${y}.png`
     ];
     let last; for(const u of urls){try{return await tileBitmap(u)}catch(e){last=e}} throw last||Error('tile-failed');
   }
@@ -122,7 +124,7 @@
     for(let ty=minY;ty<=maxY;ty++){if(ty<0||ty>=maxTile)continue;for(let tx=minX;tx<=maxX;tx++){const wx=((tx%maxTile)+maxTile)%maxTile;jobs.push({x:wx,y:ty,dx:(tx*256-left)*scale,dy:(ty*256-top)*scale})}}
     let ok=0,done=0;await Promise.all(jobs.map(async j=>{try{const im=await tileWithFallback(z,j.x,j.y);x.drawImage(im,j.dx,j.dy,512,512);if(im&&typeof im.close==='function')try{im.close()}catch(_){};ok++}catch(_){}done++;setProgress(18+Math.round(done/Math.max(1,jobs.length)*36),'Đang dựng nền bản đồ…')}));
     if(!ok) drawFallbackGrid(x,c.width,c.height,coords);
-    const credit=ok?'© OpenStreetMap contributors • © CARTO':'Nền bản đồ dự phòng';x.font='20px Arial';const tw=x.measureText(credit).width;x.fillStyle='rgba(255,255,255,.86)';x.fillRect(c.width-tw-22,c.height-34,tw+18,30);x.fillStyle='#4d5b63';x.fillText(credit,c.width-tw-13,c.height-12);
+    const credit=ok?'© OpenStreetMap contributors':'Nền bản đồ dự phòng';x.font='20px Arial';const tw=x.measureText(credit).width;x.fillStyle='rgba(255,255,255,.86)';x.fillRect(c.width-tw-22,c.height-34,tw+18,30);x.fillStyle='#4d5b63';x.fillText(credit,c.width-tw-13,c.height-12);
     const data=c.toDataURL('image/png'); exportMap.src=data;
     await new Promise((res,rej)=>{if(exportMap.complete&&exportMap.naturalWidth>0)return res();const t=setTimeout(()=>rej(Error('map-image-timeout')),5000);exportMap.onload=()=>{clearTimeout(t);res()};exportMap.onerror=()=>{clearTimeout(t);rej(Error('map-image-error'))}});await nextPaint();
   }
@@ -153,5 +155,5 @@
   }
 
   ['btnExportPdf','btnExportPdf2','btnQuickExportPdf'].forEach(id=>{const b=$(id);if(!b)return;b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();exportPdf()},true)});
-  if(previewSync){previewSync.title='v24.2: Địa chỉ hiển thị tức thời; PDF dùng bộ xuất tích hợp';previewSync.textContent='Sẵn sàng'}
+  if(previewSync){previewSync.title='v24.3: Địa chỉ hiển thị tức thời; PDF dùng OpenStreetMap không cần API key';previewSync.textContent='Sẵn sàng'}
 })();

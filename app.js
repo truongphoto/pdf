@@ -861,9 +861,10 @@
 
   async function loadMapTileWithFallback(z,x,y){
     const providers=[
-      `https://a.basemaps.cartocdn.com/light_all/${z}/${x}/${y}@2x.png`,
-      `https://b.basemaps.cartocdn.com/light_all/${z}/${x}/${y}@2x.png`,
-      `https://tile.openstreetmap.org/${z}/${x}/${y}.png`
+      `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
+      `https://a.tile.openstreetmap.org/${z}/${x}/${y}.png`,
+      `https://b.tile.openstreetmap.org/${z}/${x}/${y}.png`,
+      `https://c.tile.openstreetmap.org/${z}/${x}/${y}.png`
     ];
     let lastError=null;
     for(const url of providers){
@@ -920,8 +921,8 @@
     }));
     if(!loaded || loaded < Math.ceil(total*0.6)) throw new Error('map-tiles-failed');
 
-    // Attribution bắt buộc cho nền bản đồ OSM/CARTO.
-    const credit='© OpenStreetMap contributors • © CARTO';
+    // Attribution cho nền bản đồ OpenStreetMap.
+    const credit='© OpenStreetMap contributors';
     ctx.save();
     ctx.font=`${11*scale}px Arial`;
     const pad=4*scale, tw=ctx.measureText(credit).width;
