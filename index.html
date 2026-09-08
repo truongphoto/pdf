@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<title>QR Chỉ dẫn địa điểm thẩm định | Trường GPP</title>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-y-te-32.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png"/>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#1677e8"/>
+<link href="styles.css?v=19" rel="stylesheet"/>
+<script defer="" src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script defer="" src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script defer="" src="app.js?v=19"></script>
+</head>
+<body>
+<header class="topbar">
+<div class="brand-area">
+  <div class="brand-logo-shell" aria-hidden="true">
+    <img class="brand-logo" src="assets/brand-truong-gpp.png" alt=""/>
+  </div>
+  <div class="brand-copy">
+    <div class="brand-kicker"><span>TRƯỜNG GPP</span><span class="brand-kicker-sep">•</span><span>CÔNG CỤ HỖ TRỢ HỒ SƠ</span></div>
+    <h1>QR Chỉ dẫn địa điểm thẩm định</h1>
+    <p>Sơ đồ vị trí • QR chỉ đường • Nhãn tuyến đường • Xuất hồ sơ</p>
+  </div>
+</div>
+<div class="top-actions">
+  <div class="author-strip" aria-label="Thông tin tác giả">
+    <span class="author-caption">Tác giả</span>
+    <strong>Ngô Quang Trường</strong>
+    <span class="author-sep" aria-hidden="true"></span>
+    <span>0829 076 979</span>
+    <span class="author-sep" aria-hidden="true"></span>
+    <span>Zalo: truongphotoart</span>
+  </div>
+  <div class="app-state-actions" aria-label="Cài đặt và cập nhật ứng dụng">
+    <button class="btn app-state-btn hidden" id="btnInstallApp" type="button">Cài đặt</button>
+    <button class="btn app-state-btn update hidden" id="btnUpdateApp" type="button">Cập nhật</button>
+  </div>
+  <div class="doc-action-group" aria-label="In và xuất hồ sơ">
+    <button class="btn top-doc-action print" id="btnPrint" type="button" title="In hồ sơ">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M6 17H4a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2M7 14h10v7H7z"/></svg>
+      <span>In hồ sơ</span>
+    </button>
+    <button class="btn top-doc-action export" id="btnExportPdf" type="button" title="Xuất file PDF">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 16v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg>
+      <span>Export PDF</span>
+    </button>
+  </div>
+</div>
+</header>
+<main class="workspace">
+<aside aria-label="Thông tin chỉ dẫn" class="panel controls">
+<div class="control-panel-head">
+  <div><span class="control-eyebrow">ĐIỀU KHIỂN HỒ SƠ</span><strong>Một khu vực thao tác</strong></div>
+  <span class="control-ready"><i></i>Sẵn sàng</span>
+</div>
+<div class="control-panel-card">
+<section class="collapsible-section primary-section"><details open><summary class="section-summary"><span class="section-summary-title">1. Vị trí thẩm định</span></summary><div class="section-body">
+<label>Tên vị trí thẩm định
+          <input id="placeName" maxlength="90" placeholder="Ví dụ: NHÀ THUỐC MINH ANH" type="text"/>
+</label>
+<label>Địa chỉ theo hồ sơ
+          <input id="address" placeholder="Số nhà, đường, phường/xã, tỉnh/thành..." type="text"/>
+          <span class="field-help">Nội dung này sẽ hiển thị trên biểu mẫu. Bản đồ ưu tiên tọa độ hoặc link Google Maps; chỉ dùng địa chỉ để tìm vị trí khi chưa có tọa độ.</span>
+</label>
+<label>Link Google Maps
+          <div class="inline-row">
+<input id="mapsUrl" placeholder="Dán link Google Maps đầy đủ" type="url"/>
+<button class="btn small" id="btnParse" type="button">Lấy tọa độ</button>
+</div>
+</label>
+<div class="two-col">
+<label>Vĩ độ (Latitude)
+            <input id="lat" inputmode="decimal" placeholder="10.762622"/>
+</label>
+<label>Kinh độ (Longitude)
+            <input id="lng" inputmode="decimal" placeholder="106.660172"/>
+</label>
+</div>
+<div class="two-col">
+<label>Độ phóng bản đồ
+            <input id="zoom" max="20" min="13" type="range" value="18"/>
+<span class="range-value"><span id="zoomValue">18</span></span>
+</label>
+<label>QR chỉ đường
+            <select id="travelMode">
+<option selected="" value="driving">Ô tô</option>
+<option value="walking">Đi bộ</option>
+<option value="bicycling">Xe đạp</option>
+<option value="transit">Phương tiện công cộng</option>
+</select>
+</label>
+</div>
+<div class="button-row">
+<button class="btn" id="btnOpenMap" type="button">Mở Google Maps</button>
+<button class="btn" id="btnTestQr" type="button">Kiểm tra QR chỉ đường</button>
+</div>
+<p class="status" id="locationStatus"></p>
+<p class="hint">Nếu tên đường chưa rõ, tăng zoom hoặc kéo ghim sang vị trí trống để tránh che chữ trên bản đồ.</p>
+</div></details></section>
+<section class="collapsible-section"><details><summary class="section-summary"><span class="section-summary-title">2. Biểu tượng đánh dấu</span></summary><div class="section-body">
+
+<p class="hint">Không bắt buộc. Có thể chọn mẫu, tải bất kỳ logo/icon nào hoặc không dùng biểu tượng.</p>
+<div class="icon-grid" id="iconChoices">
+<button class="icon-choice active" data-default-label="CƠ SỞ Y TẾ" data-icon="assets/icons/y-te.svg" title="Chọn biểu tượng Cơ Sở Y Tế" type="button"><img alt="" src="assets/icons/y-te.svg"/><span>Y tế</span></button>
+<button class="icon-choice" data-default-label="QUẦY THUỐC" data-icon="assets/icons/quay-thuoc.svg" title="Chọn biểu tượng Quầy Thuốc" type="button"><img alt="" src="assets/icons/quay-thuoc.svg"/><span>Quầy thuốc</span></button>
+<button class="icon-choice" data-default-label="NHÀ THUỐC" data-icon="assets/icons/nha-thuoc.svg" title="Chọn biểu tượng Nhà Thuốc" type="button"><img alt="" src="assets/icons/nha-thuoc.svg"/><span>Nhà thuốc</span></button>
+<button class="icon-choice" data-default-label="CÔNG TY DƯỢC" data-icon="assets/icons/cong-ty-duoc.svg" title="Chọn biểu tượng Công Ty Dược" type="button"><img alt="" src="assets/icons/cong-ty-duoc.svg"/><span>Cty dược</span></button>
+<button class="icon-choice" data-default-label="PHÒNG KHÁM" data-icon="assets/icons/phong-kham.svg" title="Chọn biểu tượng Phòng Khám" type="button"><img alt="" src="assets/icons/phong-kham.svg"/><span>Phòng khám</span></button>
+<button class="icon-choice" data-default-label="BỆNH VIỆN" data-icon="assets/icons/benh-vien.svg" title="Chọn biểu tượng Bệnh Viện" type="button"><img alt="" src="assets/icons/benh-vien.svg"/><span>Bệnh viện</span></button>
+<button class="icon-choice" data-default-label="" data-icon="none" title="Không dùng biểu tượng" type="button"><span class="none-icon">-</span><span>Không dùng</span></button>
+<button class="icon-choice custom" id="btnCustomIcon" type="button"><span class="upload-icon">+</span><span>Tải icon khác</span></button>
+</div>
+<input accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden="" id="customIconInput" type="file"/>
+<div class="two-col compact-top">
+<label>Kích thước icon trên bản đồ
+            <input id="markerSize" max="60" min="20" step="1" type="range" value="36"/>
+<span class="range-value"><span id="markerSizeValue">36</span> px</span>
+</label>
+<p class="hint">Mặc định 36 px. Có thể kéo biểu tượng trực tiếp bằng chuột để chỉnh vị trí trên bản đồ.</p>
+<label>Logo trong QR
+            <select id="qrLogoMode">
+<option value="none">Không dùng</option>
+<option selected="" value="marker">Dùng icon đang chọn</option>
+<option value="custom">Tải logo/icon khác</option>
+</select>
+</label>
+</div>
+<label class="hidden" id="qrCustomWrap">Logo/icon riêng trong QR
+          <input accept="image/png,image/jpeg,image/webp,image/svg+xml" id="qrCustomInput" type="file"/>
+</label>
+<label>Kích thước logo trong QR
+          <input id="qrLogoSize" max="22" min="12" type="range" value="17"/>
+<span class="range-value"><span id="qrLogoSizeValue">17</span>%</span>
+</label>
+<p class="hint">Để QR dễ quét, nên giữ logo ở khoảng 15-18%.</p>
+<label>Kích thước QR trên biểu mẫu
+          <input id="qrBoxSize" max="20" min="11" step="0.2" type="range" value="15.4"/>
+<span class="range-value"><span id="qrBoxSizeValue">15.4</span>% chiều ngang trang</span>
+</label>
+<div class="button-row qr-size-actions">
+<button class="btn small" id="btnQrSmaller" type="button">− Thu nhỏ</button>
+<button class="btn small" id="btnQrDefault" type="button">Mặc định</button>
+<button class="btn small" id="btnQrLarger" type="button">+ Phóng to</button>
+</div>
+<p class="hint">Nút thay đổi kích thước QR ngay trên bản xem trước. QR lớn hơn sẽ dễ nhận diện hơn khi in.</p>
+</div></details></section>
+<section class="collapsible-section"><details><summary class="section-summary"><span class="section-summary-title">3. Tên các tuyến đường chính</span></summary><div class="section-body">
+
+<label>Tên đường / mốc cần làm rõ
+          <textarea id="roadNames" maxlength="260" placeholder="Mỗi dòng một tên, ví dụ:
+Đường Nguyễn Văn A
+Đường Trần Hưng Đạo
+Ngã tư Trung Lương" rows="4"></textarea>
+</label>
+<div class="button-row wrap">
+<button class="btn" id="btnApplyRoadLabels" type="button">Cập nhật nhãn trên bản đồ</button>
+<button class="btn" id="btnClearRoadLabels" type="button">Xóa nhãn</button>
+</div>
+<p class="hint">Mỗi dòng tạo một nhãn riêng. Kéo nhãn để di chuyển; bấm nút ↻ trên nhãn để xoay 15°. Giữ Shift khi bấm ↻ để xoay ngược.</p>
+</div></details></section>
+<section class="collapsible-section"><details><summary class="section-summary"><span class="section-summary-title">4. Lưu ý đường đi</span></summary><div class="section-body">
+
+<label class="note-enable-row">
+  <input id="noteEnabled" type="checkbox"/>
+  <span><strong>Có lưu ý đường đi</strong><small>Chỉ hiển thị trên biểu mẫu khi được chọn và có nội dung.</small></span>
+</label>
+<div id="noteControls" class="note-controls hidden">
+  <label>Lưu ý dưới biểu mẫu
+    <textarea id="note" maxlength="320" placeholder="Ví dụ: Đường phía trước đang sửa chữa; đề nghị đi vào từ đường... Cổng tiếp nhận nằm phía..." rows="4"></textarea>
+  </label>
+  <div class="note-size-row">
+    <label>Kích thước chữ lưu ý
+      <input id="noteFontSize" type="range" min="9" max="12.5" step="0.5" value="9"/>
+      <span class="range-value"><span id="noteFontSizeValue">9</span> pt</span>
+    </label>
+    <div class="note-size-help">Mặc định 9 pt. Có thể tăng đến 12.5 pt khi cần làm phần lưu ý dễ nhìn hơn.</div>
+  </div>
+  <div class="counter"><span id="noteCount">0</span>/320 ký tự</div>
+</div>
+</div></details></section>
+<section class="collapsible-section export-section"><details><summary class="section-summary"><span class="section-summary-title">5. Xuất hồ sơ</span></summary><div class="section-body">
+<div class="export-grid">
+  <label>Khổ giấy xuất
+    <select id="paperSize">
+      <option value="letter" selected>Letter 8.5 × 11 in (mẫu gốc)</option>
+      <option value="a4">A4 210 × 297 mm</option>
+    </select>
+  </label>
+  <div class="paper-note" id="paperSizeHint">Letter giữ đúng kích thước biểu mẫu gốc.</div>
+</div>
+<div class="button-row wrap export-inline-actions">
+  <button class="btn" id="btnPrint2" type="button">In</button>
+  <button class="btn primary" id="btnExportPdf2" type="button">Export PDF</button>
+  <button class="btn" id="btnDownloadQr" type="button">Tải QR PNG</button>
+  <button class="btn" id="btnCopyLink" type="button">Sao chép link</button>
+</div>
+<div class="direct-export-note">
+  <strong>Export PDF không cần API:</strong> phần mềm chụp trực tiếp bản xem trước, gồm cả Google Maps, rồi đưa nguyên trang vào PDF. Khi trình duyệt hỏi quyền chia sẻ, hãy chọn <strong>tab hiện tại</strong>.
+</div>
+<input id="googleApiKey" type="hidden" value=""/>
+</div></details></section>
+</div>
+<div class="panel-footer-actions four-actions" aria-label="Thao tác nhanh">
+  <button class="btn" id="btnRefreshAll" type="button">Làm mới</button>
+  <button class="btn" id="btnQuickTestQr" type="button">Kiểm tra QR</button>
+  <button class="btn" id="btnQuickPrint" type="button">In</button>
+  <button class="btn primary" id="btnQuickExportPdf" type="button">PDF</button>
+</div>
+</aside>
+<section aria-label="Xem trước biểu mẫu" class="preview-area">
+<div class="preview-toolbar">
+  <div class="preview-title"><span class="preview-status-dot"></span><strong>Xem trước biểu mẫu</strong></div>
+  <div class="preview-toolbar-right">
+    <div class="paper-quick-switch" role="group" aria-label="Chọn khổ giấy nhanh">
+      <button type="button" class="paper-quick-btn active" id="btnPaperLetter" data-paper="letter">Letter</button>
+      <button type="button" class="paper-quick-btn" id="btnPaperA4" data-paper="a4">A4</button>
+    </div>
+    <span class="preview-meta" id="previewMeta">Biểu mẫu gốc • Letter 8.5 × 11 inch</span>
+    <span class="preview-sync-status warning" id="previewSyncStatus" title="In/PDF lấy trực tiếp từ bản xem trước, không cần Google Static Maps API.">Xem trước = Xuất</span>
+  </div>
+</div>
+<div class="sheet-viewport" id="sheetViewport">
+<div class="sheet" id="sheet">
+<img alt="Biểu mẫu sơ đồ địa điểm kinh doanh" class="template" src="assets/so-do-dia-diem-template.png">
+<div class="map-frame" id="mapFrame">
+<iframe id="mapIframe" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Google Maps"></iframe>
+<img alt="Google Maps tĩnh" class="static-map hidden" crossorigin="anonymous" id="staticMapImage">
+<div class="map-empty" id="mapEmpty">Nhập địa chỉ hoặc tọa độ để hiển thị bản đồ.</div>
+<div aria-label="Nhãn tên đường thủ công" class="road-labels-layer" id="roadLabelsLayer"></div>
+<div class="marker-wrap" id="markerWrap">
+<img alt="Biểu tượng vị trí" id="markerIcon" src="assets/icons/y-te.svg">
+<div class="place-label" id="placeLabel">VỊ TRÍ THẨM ĐỊNH</div>
+</div>
+<div class="address-output hidden" id="addressOutput"><strong>Địa chỉ:</strong> <span></span></div>
+</div>
+<div class="direction north">Hướng Bắc</div>
+<div class="direction south">Hướng Nam</div>
+<div class="direction west">Hướng<br/>Tây</div>
+<div class="direction east">Hướng<br/>Đông</div>
+<div class="qr-card" id="qrCard">
+<div class="qr-holder">
+<div id="qrcode"></div>
+<img alt="Logo trong QR" class="qr-logo hidden" id="qrLogoOverlay">
+</div>
+<div class="qr-caption">QUÉT MÃ ĐỂ CHỈ ĐƯỜNG</div>
+</div>
+<div class="note-output" id="noteOutput"><strong>LƯU Ý:</strong> <span></span></div>
+</div>
+</div>
+</section>
+</main>
+<div aria-live="polite" class="toast" id="toast" role="status"></div>
+</body>
+</html>

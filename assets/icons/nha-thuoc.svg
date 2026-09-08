@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 160">
+  <path fill="#1677e8" d="M64 2C29.8 2 2 29.8 2 64c0 48 62 94 62 94s62-46 62-94C126 29.8 98.2 2 64 2z"/>
+  <circle cx="64" cy="61" r="40" fill="#fff"/>
+  <!-- Lọ thuốc: nhận diện nhà thuốc, tránh hình mái nhà -->
+  <rect x="43" y="31" width="42" height="10" rx="3" fill="#10a96a"/>
+  <rect x="38" y="40" width="52" height="45" rx="9" fill="#10a96a"/>
+  <rect x="46" y="53" width="36" height="18" rx="4" fill="#fff"/>
+  <circle cx="55" cy="62" r="3.5" fill="#10a96a"/>
+  <circle cx="64" cy="62" r="3.5" fill="#10a96a"/>
+  <circle cx="73" cy="62" r="3.5" fill="#10a96a"/>
+  <!-- Viên nang -->
+  <g transform="translate(66 71) rotate(-34 16 7)">
+    <rect x="0" y="0" width="32" height="14" rx="7" fill="#fff" stroke="#10a96a" stroke-width="3"/>
+    <path d="M16 1.5v11" stroke="#10a96a" stroke-width="3"/>
+  </g>
+</svg>

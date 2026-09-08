@@ -1,0 +1,31 @@
+{
+  "name": "QR Chỉ Dẫn Địa Điểm Thẩm Định - Trường GPP",
+  "short_name": "QR Thẩm Định",
+  "description": "Tạo sơ đồ vị trí, QR chỉ đường và biểu mẫu phục vụ thẩm định.",
+  "lang": "vi",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f8fb",
+  "theme_color": "#1677e8",
+  "icons": [
+    {
+      "src": "assets/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/app-icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
